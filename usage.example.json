@@ -1,0 +1,8 @@
+{
+  "accounts": [
+    { "label": "Claude", "kind": "claude", "dir": "~/.claude" },
+    { "label": "Claude 2", "kind": "claude", "dir": "~/.claude-second", "color": "#c15f3c" },
+    { "label": "Codex", "kind": "codex", "home": "~/.codex" },
+    { "label": "Codex remote", "kind": "codex", "home": "~/.codex", "on": "other-machine" }
+  ]
+}

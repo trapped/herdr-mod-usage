@@ -1,0 +1,9 @@
+{
+  "insert_before": "sidebar-footer",
+  "block": {
+    "id": "usage",
+    "type": "block",
+    "size": { "px": 107 },
+    "content": { "mod": "usage", "props": { "block": "usage" } }
+  }
+}
