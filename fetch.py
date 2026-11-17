@@ -6,16 +6,16 @@ Usage: fetch.py <usage.json>
     {"label": "Claude", "kind": "claude", "dir": "~/.claude"},
     {"label": "Codex",  "kind": "codex",  "home": "~/.codex", "on": "<hc machine>", "color": "#10a37f"}
   ]}
-`dir` is a Claude config dir, `home` a CODEX_HOME; `on` reads Codex on another herdr-core machine;
+`dir` is a Claude config dir, `home` a CODEX_HOME; `on` reads either provider on another herdr-core machine;
 `color` overrides the bar colour. Without the file: one Claude account in $CLAUDE_CONFIG_DIR or ~/.claude.
 
 Output: {"at": <unix>, "accounts": [{"label", "kind", "color", "bars": [{"name", "used", "resets"}], "error"}]}
 How each source works: README.md.
 """
-import base64
 import hashlib
 import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 import time
@@ -101,13 +101,7 @@ def claude(acct):
 
 def codex(acct):
     home = acct.get("home", "~/.codex")
-    if acct.get("on"):
-        # hc exec forwards no stdin, so the script travels as base64.
-        b64 = base64.b64encode(CODEX.encode()).decode()
-        cmd = ["hc", "exec", "--on", acct["on"], "--", "python3", "-c",
-               f"import base64;exec(base64.b64decode('{b64}'))", home]
-    else:
-        cmd = [sys.executable, "-c", CODEX, home]
+    cmd = [sys.executable, "-c", CODEX, home]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=40)
     if r.returncode != 0 or not r.stdout.strip():
         raise RuntimeError((r.stderr.strip().splitlines() or ["unreachable"])[-1][:60])
@@ -124,11 +118,31 @@ def codex(acct):
     return bars
 
 
+def remote(acct):
+    # Run the same reader beside the login. Only quota data comes back; credentials stay there.
+    account = {k: v for k, v in acct.items() if k != "on"}
+    runner = ("import json,sys; p=json.load(sys.stdin); ns={'__name__':'remote_usage'}; "
+              "exec(p['source'],ns); print(json.dumps(ns['read'](p['account'])))")
+    r = subprocess.run(["hc", "exec", "-i", "--on", acct["on"], "--", "python3", "-c", runner],
+                       input=json.dumps({"source": Path(__file__).read_text(), "account": account}),
+                       capture_output=True, text=True, timeout=50)
+    if r.returncode or not r.stdout.strip():
+        raise RuntimeError((r.stderr.strip().splitlines() or ["unreachable"])[-1][:100])
+    return json.loads(r.stdout.strip().splitlines()[-1])
+
+
 def read(acct):
     out = {"label": acct.get("label", acct["kind"]), "kind": acct["kind"], "color": acct.get("color"),
+           "machine": acct.get("machine", acct.get("on", "local")),
+           "id": json.dumps([acct.get("machine", acct.get("on", "local")), acct["kind"],
+                             acct.get("dir"), acct.get("home"), acct.get("label")]),
            "bars": [], "error": None}
     try:
-        out["bars"] = {"claude": claude, "codex": codex}[acct["kind"]](acct)
+        if acct.get("on"):
+            result = remote(acct)
+            out.update(bars=result["bars"], error=result["error"])
+        else:
+            out["bars"] = {"claude": claude, "codex": codex}[acct["kind"]](acct)
     except Exception as e:  # one account failing must not hide the others
         out["error"] = str(e) or type(e).__name__
     return out

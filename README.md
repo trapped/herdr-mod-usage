@@ -28,10 +28,11 @@ account from `$CLAUDE_CONFIG_DIR` or `~/.claude`.
 | `kind` | `claude` or `codex` |
 | `dir` | Claude only: the config dir of that login (`CLAUDE_CONFIG_DIR`) |
 | `home` | Codex only: the `CODEX_HOME` of that login |
-| `on` | Codex only: a herdr-core machine (`hc machine ls`) to read it on |
+| `on` | either provider: a herdr-core machine (`hc machine ls`) to read it on |
+| `machine` | display name for the small grey machine heading (defaults to `on` or `local`) |
 | `color` | optional bar colour; the default is the agent's brand colour |
 
-The panel refreshes every 5 minutes. A bar turns red below 10% left and grey when its last read
+Accounts are grouped by machine. The panel refreshes every 5 minutes. A bar turns red below 10% left and grey when its last read
 failed (it keeps the last good value). Hover a row for the reset time.
 
 ## The layout
@@ -73,8 +74,13 @@ be null): `usedPercent`, `windowDurationMins`, `resetsAt` (unix seconds).
 - It needs a ChatGPT login. With an API key it fails with "chatgpt authentication required to
   read rate limits".
 - One login per `CODEX_HOME`.
-- With `on`, the read runs on that machine through `hc exec --on <machine>`. `hc exec` forwards
-  no stdin, so the script travels as base64.
+With `on`, either provider is read on that machine through `hc exec -i --on <machine>`.
+The reader source and account configuration travel through stdin; the remote machine needs
+Python 3 and the provider's normal login, but does not need an installed copy of the mod.
+Tokens stay on the machine that owns the login. An offline host produces an error for its
+accounts without falling back to a different local login. Cached bars match the machine,
+provider, login directory and label, so equal labels on different hosts cannot share stale data.
+Requires a herdr-core version with `hc exec -i` support.
 
 ## Files
 

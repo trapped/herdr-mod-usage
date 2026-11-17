@@ -55,7 +55,7 @@ export default class Usage extends View {
         const data = JSON.parse(r.stdout);
         // A failed read keeps the last good bars, marked stale, rather than blanking the row.
         for (const a of data.accounts) {
-          const old = this.data?.accounts?.find((o) => o.label === a.label);
+          const old = this.data?.accounts?.find((o) => o.id === a.id);
           if (a.error && old?.bars?.length) { a.bars = old.bars; a.at = old.at ?? this.data.at; } else a.at = data.at;
         }
         this.data = data;
@@ -72,9 +72,18 @@ export default class Usage extends View {
     const t = theme();
     const collapsed = (find(layout(), "sidebar")?.size?.px ?? Infinity) < 160;
     const rows = [];
+    const groups = new Map();
     for (const a of this.data?.accounts ?? []) {
-      if (!a.bars.length) rows.push({ label: a.label, error: a.error ?? "no data" });
-      a.bars.forEach((b, i) => rows.push({ label: i === 0 ? a.label : "", account: a.label, color: a.color ?? BRAND[a.kind], stale: Boolean(a.error), error: a.error, ...b }));
+      const machine = a.machine ?? "local";
+      if (!groups.has(machine)) groups.set(machine, []);
+      groups.get(machine).push(a);
+    }
+    for (const [machine, accounts] of groups) {
+      rows.push({ heading: machine });
+      for (const a of accounts) {
+        if (!a.bars.length) rows.push({ label: a.label, error: a.error ?? "no data" });
+        a.bars.forEach((b, i) => rows.push({ label: i === 0 ? a.label : "", account: a.label, color: a.color ?? BRAND[a.kind], stale: Boolean(a.error), error: a.error, ...b }));
+      }
     }
 
     // The block is as tall as its rows: ask the layout to follow when the count changes.
@@ -87,6 +96,7 @@ export default class Usage extends View {
     if (!rows.length) return root.justify_center().text_color(t.dim).child(collapsed ? "" : (this.data ? "No accounts configured" : "Reading quota…"));
 
     return root.children(rows.map((r, i) => {
+      if (r.heading) return div().h(ROW).flex_none().text_size(10).text_color(t.dim).child(collapsed ? "" : r.heading);
       const left = r.error && r.used === undefined ? null : Math.max(0, Math.min(100, 100 - r.used));
       const color = left === null || r.stale ? t.dim : left < 10 ? t.blocked : (r.color ?? t.accent);
       const tip = left === null ? `${r.label}: ${r.error}`
